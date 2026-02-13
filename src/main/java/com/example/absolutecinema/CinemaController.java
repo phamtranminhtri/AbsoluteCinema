@@ -4,10 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
@@ -17,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class CinemaController {
     private final CinemaSeats cinemaSeats;
     private Map<String, Seat> bookedSeats;
+    String password = "super_secret";
 
     public CinemaController(@Autowired CinemaSeats seats) {
         cinemaSeats = seats;
@@ -88,4 +86,21 @@ public class CinemaController {
         return Map.of("ticket", seat);
     }
 
+    @GetMapping("/stats")
+    public Map<String, Integer> getStats(@RequestParam String password) {
+        if (password == null || password.isEmpty() || !password.equals(this.password)) {
+            throw new WrongPasswordException("Wrong pass!!");
+        }
+
+        int income = 0;
+        for (Seat seat : bookedSeats.values()) {
+            income += seat.getPrice();
+        }
+        int available = cinemaSeats.getColumns() * cinemaSeats.getRows() - bookedSeats.size();
+        int purchased = bookedSeats.size();
+
+        return Map.of(
+                "income", income, "available", available, "purchased", purchased
+        );
+    }
 }
