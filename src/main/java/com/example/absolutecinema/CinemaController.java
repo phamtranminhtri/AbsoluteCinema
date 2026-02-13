@@ -10,24 +10,30 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
 public class CinemaController {
     private final CinemaSeats cinemaSeats;
-    private List<Seat> availableSeatList;
+    private Map<String, Seat> bookedSeats;
 
     public CinemaController(@Autowired CinemaSeats seats) {
-        this.cinemaSeats = seats;
-        List<Seat> seatList = cinemaSeats.getSeatList();
-        availableSeatList = new ArrayList<>();
-        availableSeatList.addAll(seatList);
+        cinemaSeats = seats;
+
+        bookedSeats = new ConcurrentHashMap<>();
     }
 
     @GetMapping("/seats")
     public ResponseEntity<?> seat() {
+        List<Seat> seatList = cinemaSeats.getSeatList();
+        List<Seat> availableSeatList = Collections.synchronizedList(new ArrayList<>());
+        for (Seat seat : seatList) {
+            if (seat.isAvailable()) {
+                availableSeatList.add(seat);
+            }
+        }
+
         return ResponseEntity
                 .ok()
                 .contentType(MediaType.APPLICATION_JSON)
@@ -39,7 +45,7 @@ public class CinemaController {
     }
 
     @PostMapping("/purchase")
-    public Seat purchase(@RequestBody Seat requestedSeat) {
+    public Map<String, ?> purchase(@RequestBody Seat requestedSeat) {
         int row = requestedSeat.getRow() - 1;
         int column = requestedSeat.getColumn() - 1;
         int numRow = cinemaSeats.getRows();
@@ -52,14 +58,34 @@ public class CinemaController {
         }
 
         Seat seat = cinemaSeats.getSeatList().get(row * numCol + column);
-        if (seat.isAvailable()) {
-            seat.setAvailable(false);
-            availableSeatList.remove(seat);
-            return seat;
-        } else {
+        if (!seat.isAvailable()) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "The ticket has been already purchased!"
             );
         }
+
+        UUID uuid = UUID.randomUUID();
+        seat.setAvailable(false);
+        bookedSeats.put(uuid.toString(), seat);
+
+        return Map.of(
+                "token", uuid,
+                "ticket", seat
+        );
     }
+
+    @PostMapping("/return")
+    public Map<String, Seat> returnTicket(@RequestBody Map<String, String> body) {
+        String token = body.get("token");
+        if (!bookedSeats.containsKey(token)) {
+            throw new WrongTokenException("Token not found " + token);
+        }
+
+        Seat seat = bookedSeats.get(token);
+        seat.setAvailable(true);
+        bookedSeats.remove(token);
+
+        return Map.of("ticket", seat);
+    }
+
 }

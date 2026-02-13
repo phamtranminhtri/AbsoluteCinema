@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @Component
@@ -17,7 +18,7 @@ public class CinemaSeats {
         this.rows = 9;
         this.columns = 9;
 
-        this.seatList = new ArrayList<>();
+        this.seatList = Collections.synchronizedList(new ArrayList<>());
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < columns; j++) {
                 seatList.add(new Seat(i + 1, j + 1));
